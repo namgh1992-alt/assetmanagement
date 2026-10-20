@@ -206,6 +206,19 @@ label.fld .in{color:var(--ink);font-size:14px;}
 .yg button::after{content:'';display:block;width:4px;height:4px;border-radius:50%;margin:3px auto 0;background:transparent;}
 .yg button.has::after{background:var(--bronze);}
 .foot .acts2{display:flex;gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap;}
+.srch{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+.srch #q{flex:1;min-width:200px;font-size:14px;padding:8px 12px;border-color:var(--rule-dark);}
+.qsum{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;font-size:13px;padding:10px 0;border-top:2px solid var(--rule-dark);border-bottom:1px solid var(--rule);}
+.qwrap{max-height:460px;overflow:auto;}
+.chip.qc{cursor:pointer;background:var(--paper);padding:4px 12px;}
+.chip.qc.on{background:var(--char);color:var(--bronze);border-color:var(--char);}
+tr.rel td{background:var(--head-2);}
+tr.divr td{font-size:12px;color:var(--mute);background:var(--paper);padding-top:12px;border-bottom:1px solid var(--rule-dark);}
+mark{background:var(--hl);color:var(--bronze-deep);font-weight:700;padding:0 1px;border-radius:2px;}
+.acts-c{white-space:nowrap;}
+.ib{border:0;background:none;color:var(--mute);cursor:pointer;font-size:14px;padding:2px 5px;border-radius:4px;line-height:1;}
+.ib:hover{color:var(--ink);background:var(--head);}
+.ib.on{color:var(--bronze);}
 .catgrp{border-top:1px solid var(--rule);padding:10px 0;}
 .catgrp .nm{font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:6px;}
 .loading{padding:80px 20px;text-align:center;color:var(--mute);}
@@ -404,7 +417,7 @@ async function replaceAll(kind){
   const yrs=new Set([...(S.years||[]), ...(d.years||[])]);
   for(const y of yrs){ await ensureYear(y); monthsOf(y).forEach(m=>{ S.tx[m]=[]; }); }
   if(d.tx) Object.entries(d.tx).forEach(([m,l])=>{ S.tx[m]=l; });
-  S.cats=d.cats; S.cash=d.cash; S.assets=d.assets; S.snaps=d.snaps; S.diag={}; S.invest=clone(DEFAULT_INVEST);
+  S.cats=d.cats; S.cash=d.cash; S.assets=d.assets; S.snaps=d.snaps; S.diag={}; S.invest=clone(DEFAULT_INVEST); S.fixed=[]; save('fixed');
   ['cats','cash','assets','snaps','diag','invest'].forEach(save);
   for(const y of yrs) monthsOf(y).forEach(m=>save('tx-'+m));
   S.years=[...(d.years||[])];
@@ -486,7 +499,7 @@ const curMkOf = y=> y===REAL_YEAR ? realMk : `${y}-01`;
 let curMk = curMkOf(YEAR);
 const S = {
   tab:'dash', cats:null, tx:{}, diag:{}, cash:null, invest:null, assets:null, snaps:[],
-  dashMode:'month', dashMonth:curMk, ledMonth:curMk, loadedYears:new Set(), assetView:'group', diagBusy:null,
+  dashMode:'month', dashMonth:curMk, ledMonth:curMk, loadedYears:new Set(), assetView:'group', q:'', qScope:'all', qCat:'', fixed:[], edit:null, fixSel:{}, diagBusy:null,
   form:{type:'expense', cat:'식비', sub:'외식/배달'},
   sample:null, dl:null
 };
@@ -703,6 +716,7 @@ function viewLedger(){
     <button class="btn ghost yearbtn" data-act="yearpick" aria-haspopup="dialog">${YEAR}년 ▾</button>
     <div class="mnav"><button class="btn ghost" data-act="lmove" data-v="-1" ${i===0?'disabled':''} aria-label="이전 달">‹</button><div class="m">${mLabel(mk)}</div><button class="btn ghost" data-act="lmove" data-v="1" ${i===11?'disabled':''} aria-label="다음 달">›</button></div>
     <span class="sp"></span>
+    <button class="btn ghost" data-act="fixed">고정비 설정</button>
     <button class="btn ghost" data-act="cats">카테고리 관리</button>
     <button class="btn ghost" data-act="csvin">CSV 가져오기</button>
     <button class="btn ghost" data-act="csvout">CSV 내보내기</button>
@@ -712,6 +726,11 @@ function viewLedger(){
     <div class="kpi"><div class="l">이번 달 지출</div><div class="v num">${won(T.exp)}</div></div>
     <div class="kpi"><div class="l">남은 돈</div><div class="v num ${T.net<0?'neg':'pos'}">${won(T.net)}</div><div class="s">${list.length}건 기록</div></div>
   </div>
+  <div class="sec"><h2 class="h">키워드 검색</h2>
+    <div class="srch"><input class="in" id="q" type="search" value="${esc(S.q)}" placeholder="예: 축의금, 보험, 카페, 급여" autocomplete="off" aria-label="키워드 검색">
+      <div class="seg" role="group"><button data-act="qscope" data-v="all" class="${S.qScope!=='year'?'on':''}">전체 기간</button><button data-act="qscope" data-v="year" class="${S.qScope==='year'?'on':''}">${YEAR}년</button></div>
+      ${S.q?`<button class="btn sm ghost" data-act="qclear">지우기</button>`:''}</div>
+    <div id="qres">${searchHTML()}</div></div>
   <div class="sec"><h2 class="h">새 거래 기록</h2>
   <div class="form">
     <label class="fld">날짜<input class="in" type="date" id="fDate" value="${defDate}" min="${YEAR}-01-01" max="${YEAR}-12-31"></label>
@@ -725,7 +744,7 @@ function viewLedger(){
   <div class="sec g2" style="grid-template-columns:1.6fr 1fr">
     <div><div class="fig"><i>Fig. 1</i>${mLabel(mk)} 거래 내역</div>
       ${list.length?`<div class="scroll"><table class="t"><thead><tr><th>날짜</th><th>대분류</th><th>소분류</th><th>메모</th><th class="r">금액</th><th></th></tr></thead><tbody>
-      ${list.map(t=>`<tr><td class="num" style="white-space:nowrap">${t.date.slice(5).replace('-','.')}</td><td>${t.type==='income'?'<span class="pill in">수입</span> ':''}${esc(t.cat)}</td><td>${esc(t.sub)}</td><td class="mute">${esc(t.memo)}</td><td class="r num ${t.type==='income'?'pos':''}">${t.type==='income'?'+':''}${fmt(t.amount)}</td><td class="c"><button class="x" data-act="txdel" data-id="${t.id}" aria-label="삭제">×</button></td></tr>`).join('')}
+      ${list.map(t=>`<tr><td class="num" style="white-space:nowrap">${t.date.slice(5).replace('-','.')}</td><td>${t.type==='income'?'<span class="pill in">수입</span> ':''}${esc(t.cat)}</td><td>${esc(t.sub)}</td><td class="mute">${esc(t.memo)}${isFixed(t)?' <span class="pill">고정</span>':''}</td><td class="r num ${t.type==='income'?'pos':''}">${t.type==='income'?'+':''}${fmt(t.amount)}</td><td class="c acts-c">${rowActs(t)}</td></tr>`).join('')}
       </tbody></table></div>`:`<div class="empty">${mLabel(mk)}에는 아직 기록이 없어요. 위에서 첫 거래를 기록해 보세요.</div>`}
     </div>
     <div><div class="fig"><i>Fig. 2</i>대분류별 지출</div>${expItems.length?rankList(expItems):'<p class="p">지출 기록이 없어요.</p>'}
@@ -965,6 +984,168 @@ function yearModal(){
   setTimeout(()=>{ const b=document.querySelector('.yg button.on'); if(b) b.focus(); },0);
 }
 
+/* ================= SEARCH · EDIT · FIXED ================= */
+const SYN_GROUPS = [
+  ['축의','축의금','결혼','결혼식','청첩','축하','경조사'],
+  ['조의','조의금','부조','부의','장례','장례식','부친상','모친상','조문','경조사'],
+  ['선물','생일','생일선물','일반선물','보미선물','꽃','집들이'],
+  ['급여','월급','교육청급여','성과급','수당','맞춤형복지','근로수입'],
+  ['보험','보험료','실손','암보험','교직원보험','보장성'],
+  ['커피','카페','스타벅스','엔젤리너스','팀홀튼','유자차'],
+  ['병원','약국','진료','감기','한의원','스케일링','정형외과','병원/약국'],
+  ['교통','버스','택시','티머니','대중교통','교통비'],
+  ['구독','구독료','클로드','멤버십','스카이라이프'],
+  ['대출','이자','전세이자','전세대출이자','대출상환'],
+  ['관리비','장기수선','부동산','주거','주거, 부동산'],
+  ['세금','자동차세','재산세','주민세','종합소득세','벌금'],
+  ['간식','아이스크림','편의점','산도','성심당','빵','간식/편의점'],
+  ['외식','배달','치킨','햄버거','떡볶이','버거','외식/배달'],
+  ['캐시백','포인트','앱테크','모니모','엠브레인','페이머니','앱테크/기타수입'],
+  ['회비','노조','노조회비','동학년','학년회비','주식회비','가족회비','교사관련회비'],
+  ['여행','비행기','숙박','숙소','투어','비자'],
+  ['용돈','명절','추석','설','부모님'],
+  ['학급','학급운영비','학생','학생들'],
+  ['미용','머리','미용실','헤어','의류','옷','의류/미용']
+];
+const norm = s=>String(s||'').toLowerCase().replace(/\s+/g,'');
+function expandTerms(q){
+  const n=norm(q), set=new Set([n]);
+  SYN_GROUPS.forEach(g=>{ if(g.some(w=>{const x=norm(w);return x.includes(n)||n.includes(x);})) g.forEach(w=>set.add(norm(w))); });
+  return [...set].filter(Boolean);
+}
+function hl(text,q){
+  const s=String(text||''), i=s.toLowerCase().indexOf(String(q||'').toLowerCase().trim());
+  if(!q||i<0) return esc(s);
+  const L=q.trim().length; return esc(s.slice(0,i))+'<mark>'+esc(s.slice(i,i+L))+'</mark>'+esc(s.slice(i+L));
+}
+async function loadAllYears(){ for(const y of (S.years||[])) await ensureYear(y); }
+function runSearch(){
+  const q=(S.q||'').trim(); if(!q) return null;
+  const n=norm(q), terms=expandTerms(q);
+  const all=Object.values(S.tx).flat().filter(Boolean);
+  const pool = S.qScope==='year' ? all.filter(t=>t.date.startsWith(String(YEAR))) : all;
+  const direct=[], related=[];
+  pool.forEach(t=>{
+    const m=norm(t.memo), c=norm(t.cat), sb=norm(t.sub);
+    if(m.includes(n)||c.includes(n)||sb.includes(n)) direct.push(t);
+    else if(terms.some(w=>m.includes(w)||sb.includes(w)||c===w)) related.push(t);
+  });
+  // categories linked to the direct hits pull in the rest of that category's small set
+  const catCount={}; direct.forEach(t=>{ const k=t.cat+'|'+t.sub; catCount[k]=(catCount[k]||0)+1; });
+  const topLinks=Object.entries(catCount).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k);
+  const seen=new Set([...direct,...related].map(t=>t.id));
+  pool.forEach(t=>{ if(!seen.has(t.id) && topLinks.includes(t.cat+'|'+t.sub) && direct.length){ related.push(t); seen.add(t.id); } });
+  return {q,terms,direct,related};
+}
+function searchHTML(){
+  const R=runSearch();
+  if(!R) return `<p class="src">메모·대분류·소분류에서 찾고, '축의금'처럼 입력하면 결혼·경조사 같은 관련 항목도 함께 보여줘요.</p>`;
+  let rows=[...R.direct.map(t=>({t,k:'d'})), ...R.related.map(t=>({t,k:'r'}))];
+  if(S.qCat) rows=rows.filter(r=>r.t.cat===S.qCat);
+  rows.sort((a,b)=>(a.k===b.k?0:(a.k==='d'?-1:1))||b.t.date.localeCompare(a.t.date));
+  const sum=type=>rows.filter(r=>r.t.type===type).reduce((a,r)=>a+r.t.amount,0);
+  const byCat={}; [...R.direct,...R.related].forEach(t=>{ byCat[t.cat]=(byCat[t.cat]||0)+(t.type==='income'?0:t.amount)+(t.type==='income'?t.amount:0); });
+  const chips=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<button class="chip qc ${S.qCat===c?'on':''}" data-act="qcat" data-v="${esc(c)}"><i style="background:${c==='수입'?'var(--pos)':catColor('expense',c)}"></i>${esc(c)} <span class="num mute">${fmtK(v)}</span></button>`).join('');
+  const shown=rows.slice(0,200);
+  return `<div class="qsum"><span><b class="num">${rows.length}</b>건</span><span>지출 <b class="num">${won(sum('expense'))}</b></span>${sum('income')?`<span>수입 <b class="num pos">${won(sum('income'))}</b></span>`:''}
+      <span class="mute">직접 일치 ${R.direct.length} · 관련 ${R.related.length}</span></div>
+    ${chips?`<div class="chips" style="margin:8px 0 10px">${S.qCat?`<button class="chip qc" data-act="qcat" data-v="">전체 보기</button>`:''}${chips}</div>`:''}
+    ${rows.length?`<div class="scroll qwrap"><table class="t"><thead><tr><th>날짜</th><th>대분류</th><th>소분류</th><th>메모</th><th class="r">금액</th><th></th></tr></thead><tbody>
+    ${shown.map(({t,k},i)=>`${k==='r'&&(i===0||shown[i-1].k==='d')?`<tr class="divr"><td colspan="6">관련 항목 · ${esc(R.terms.filter(w=>w!==norm(R.q)).slice(0,6).join(', '))}</td></tr>`:''}<tr class="${k==='r'?'rel':''}"><td class="num" style="white-space:nowrap">${t.date.replace(/-/g,'.')}</td><td>${t.type==='income'?'<span class="pill in">수입</span> ':''}${hl(t.cat,R.q)}</td><td>${hl(t.sub,R.q)}</td><td>${hl(t.memo,R.q)}${k==='r'?' <span class="pill">관련</span>':''}</td><td class="r num ${t.type==='income'?'pos':''}">${t.type==='income'?'+':''}${fmt(t.amount)}</td><td class="c acts-c">${rowActs(t)}</td></tr>`).join('')}
+    </tbody></table></div>${rows.length>200?`<p class="src">최근 200건만 보여요. 검색어를 더 구체적으로 입력해 보세요.</p>`:''}`:`<div class="empty">'${esc(R.q)}'와 관련된 거래가 없어요.</div>`}`;
+}
+let qTimer;
+async function refreshSearch(){ await loadAllYears(); const el=$('#qres'); if(el) el.innerHTML=searchHTML(); }
+
+/* ---- helpers ---- */
+function findTx(id){ for(const [mk,l] of Object.entries(S.tx)){ const i=(l||[]).findIndex(t=>t.id===id); if(i>=0) return {mk,i,t:l[i]}; } return null; }
+const lastDay=(y,m)=>new Date(y,m,0).getDate();
+function shiftMonth(mk,n){ const [y,m]=mk.split('-').map(Number); const d=new Date(y,m-1+n,1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+function dateIn(mk,day){ const [y,m]=mk.split('-').map(Number); return `${mk}-${String(Math.max(1,Math.min(day,lastDay(y,m)))).padStart(2,'0')}`; }
+const fixKey=t=>[t.type,t.cat,t.sub,norm(t.memo)].join('|');
+const isFixed=t=>(S.fixed||[]).some(f=>fixKey(f)===fixKey(t));
+function rowActs(t){
+  return `<button class="ib" data-act="txedit" data-id="${t.id}" title="수정" aria-label="수정">✎</button><button class="ib ${isFixed(t)?'on':''}" data-act="txfix" data-id="${t.id}" title="${isFixed(t)?'고정비 해제':'고정비로 등록'}" aria-label="고정비">${isFixed(t)?'★':'☆'}</button><button class="x" data-act="txdel" data-id="${t.id}" aria-label="삭제">×</button>`;
+}
+function afterTxChange(){ render(); }
+
+/* ---- edit modal ---- */
+function editModal(id, keep){
+  const f=findTx(id); if(!f) return;
+  if(!keep) S.edit={...clone(f.t), origMk:f.mk};
+  const e=S.edit, cats=S.cats[e.type]||{};
+  if(!cats[e.cat]){ e.cat=Object.keys(cats)[0]||''; e.sub=(cats[e.cat]||[])[0]||''; }
+  const subs=[...(cats[e.cat]||[])]; if(e.sub&&!subs.includes(e.sub)) subs.unshift(e.sub);
+  openModal(`<h3>거래 수정</h3><p class="p">날짜를 다른 달로 바꾸면 그 달로 옮겨져요.</p>
+    <div class="fields" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+      <label class="fld">날짜<input class="in" type="date" id="eDate" value="${e.date}" min="2000-01-01" max="2099-12-31"></label>
+      <label class="fld">구분<select class="in" data-e="type"><option value="expense" ${e.type==='expense'?'selected':''}>지출</option><option value="income" ${e.type==='income'?'selected':''}>수입</option></select></label>
+      <label class="fld">대분류<select class="in" data-e="cat">${Object.keys(cats).map(c=>`<option ${c===e.cat?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
+      <label class="fld">소분류<select class="in" data-e="sub">${subs.map(s=>`<option ${s===e.sub?'selected':''}>${esc(s)}</option>`).join('')}</select></label>
+      <label class="fld">금액(원)<input class="in num" id="eAmt" value="${fmt(e.amount)}" inputmode="numeric" style="text-align:right"></label>
+      <label class="fld" style="grid-column:1/-1">메모<input class="in" id="eMemo" value="${esc(e.memo)}"></label>
+    </div>
+    <div class="toolbar" style="margin-top:12px"><button class="btn sm ghost" data-act="enext">다음 달 같은 날로</button><button class="btn sm ghost" data-act="eprev">이전 달로</button><span class="sp"></span><button class="btn sm ghost" data-act="efix">${isFixed(e)?'★ 고정비 해제':'☆ 고정비로 등록'}</button></div>
+    <div class="acts"><button class="btn ghost" data-act="edel">삭제</button><span class="sp" style="flex:1"></span><button class="btn ghost" data-act="mclose">취소</button><button class="btn dark" data-act="esave">저장</button></div>`);
+}
+function readEdit(){ const e=S.edit; if(!e) return; const d=$('#eDate'),a=$('#eAmt'),m=$('#eMemo'); if(d) e.date=d.value; if(a) e.amount=Math.abs(parseNum(a.value)); if(m) e.memo=m.value.trim(); }
+async function saveEdit(){
+  readEdit(); const e=S.edit;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(e.date)||+e.date.slice(0,4)<2000||+e.date.slice(0,4)>2099){ toast('2000~2099년 날짜를 입력해 주세요'); return; }
+  if(!e.amount){ toast('금액을 입력해 주세요'); return; }
+  const f=findTx(e.id); if(!f){ closeModal(); return; }
+  const newMk=e.date.slice(0,7); await ensureYear(+e.date.slice(0,4));
+  const rec={id:e.id,date:e.date,type:e.type,cat:e.cat,sub:e.sub,amount:e.amount,memo:e.memo,ts:f.t.ts};
+  if(newMk===f.mk){ S.tx[f.mk][f.i]=rec; save('tx-'+f.mk); }
+  else { S.tx[f.mk].splice(f.i,1); save('tx-'+f.mk); (S.tx[newMk]=S.tx[newMk]||[]).push(rec); save('tx-'+newMk); }
+  S.edit=null; closeModal(); afterTxChange();
+  toast(newMk===f.mk?'수정했어요':`${+newMk.slice(5)}월로 옮겼어요`);
+}
+function toggleFixed(t){
+  S.fixed=S.fixed||[]; const k=fixKey(t), i=S.fixed.findIndex(f=>fixKey(f)===k);
+  if(i>=0){ S.fixed.splice(i,1); toast('고정비에서 뺐어요'); }
+  else { S.fixed.push({id:uid(),type:t.type,cat:t.cat,sub:t.sub,memo:t.memo,amount:t.amount,day:+t.date.slice(8)}); toast('고정비로 등록했어요'); }
+  save('fixed');
+}
+
+/* ---- fixed modal ---- */
+function suggestFixed(){
+  const g={}; Object.values(S.tx).flat().filter(Boolean).forEach(t=>{ const k=fixKey(t); (g[k]=g[k]||[]).push(t); });
+  return Object.values(g).map(l=>{ const months=new Set(l.map(t=>t.date.slice(0,7))); const amts=l.map(t=>t.amount).sort((a,b)=>a-b); const days=l.map(t=>+t.date.slice(8)).sort((a,b)=>a-b);
+      return {t:l[l.length-1], n:months.size, amount:amts[Math.floor(amts.length/2)], day:days[Math.floor(days.length/2)]}; })
+    .filter(x=>x.n>=3 && !isFixed(x.t)).sort((a,b)=>b.n-a.n).slice(0,15);
+}
+function fixedModal(keep){
+  if(!keep){ S.fixTarget=shiftMonth(S.ledMonth,1); S.fixSel={}; S.fixSug=null; }
+  const tgt=S.fixTarget, list=S.fixed||[], exist=(S.tx[tgt]||[]);
+  list.forEach(f=>{ if(!S.fixSel[f.id]){ const dup=exist.some(t=>fixKey(t)===fixKey(f)); S.fixSel[f.id]={on:!dup,date:dateIn(tgt,f.day||1),dup}; } });
+  const rows=list.map(f=>{ const s=S.fixSel[f.id]; return `<tr><td class="c"><input type="checkbox" data-fx="on" data-id="${f.id}" ${s.on?'checked':''} aria-label="선택"></td>
+    <td><input class="in" type="date" data-fx="date" data-id="${f.id}" value="${s.date}" style="padding:3px 6px"></td>
+    <td>${f.type==='income'?'<span class="pill in">수입</span> ':''}${esc(f.cat)} <span class="mute">› ${esc(f.sub)}</span></td>
+    <td>${esc(f.memo)}${s.dup?' <span class="pill">이미 있음</span>':''}</td>
+    <td class="r"><input class="cell r num" data-fx="amt" data-id="${f.id}" value="${fmt(f.amount)}" inputmode="numeric" style="width:96px"></td>
+    <td class="c"><button class="x" data-act="fxdel" data-id="${f.id}" aria-label="고정비 삭제">×</button></td></tr>`; }).join('');
+  const sug=S.fixSug;
+  openModal(`<h3>고정비 설정</h3><p class="p">매달 반복되는 거래를 등록해 두고, 원하는 달에 날짜를 골라 한 번에 기록해요. 거래 내역의 ☆를 눌러도 등록돼요.</p>
+    <div class="toolbar"><label class="fld" style="flex-direction:row;align-items:center;gap:8px;color:var(--ink)">기록할 달 <input class="in" type="month" id="fxMonth" value="${tgt}"></label>
+      <button class="btn sm ghost" data-act="fxshift" data-v="-1">‹ 이전 달</button><button class="btn sm ghost" data-act="fxshift" data-v="1">다음 달 ›</button><span class="sp"></span>
+      <button class="btn sm ghost" data-act="fxsug">반복 항목 찾기</button></div>
+    ${list.length?`<div class="scroll"><table class="t"><thead><tr><th class="c">선택</th><th>날짜</th><th>분류</th><th>메모</th><th class="r">금액</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      :`<div class="empty">등록된 고정비가 없어요. '반복 항목 찾기'로 매달 나가는 거래를 찾아 추가해 보세요.</div>`}
+    ${sug?`<div style="margin-top:16px"><h2 class="h">3개월 이상 반복된 거래</h2>${sug.length?`<table class="t"><tbody>${sug.map((x,i)=>`<tr><td>${esc(x.t.cat)} <span class="mute">› ${esc(x.t.sub)}</span></td><td>${esc(x.t.memo)}</td><td class="r num mute">${x.n}개월 · 매달 ${x.day}일경</td><td class="r num">${fmt(x.amount)}</td><td class="c"><button class="btn sm ghost" data-act="fxadd" data-i="${i}">추가</button></td></tr>`).join('')}</tbody></table>`:'<p class="p">새로 추가할 반복 거래가 없어요.</p>'}</div>`:''}
+    <div class="acts"><button class="btn ghost" data-act="mclose">닫기</button>${list.length?`<button class="btn dark" data-act="fxapply">선택 항목 ${+tgt.slice(5)}월에 기록</button>`:''}</div>`);
+}
+async function applyFixed(){
+  const tgt=S.fixTarget; let n=0; const touched=new Set();
+  for(const f of (S.fixed||[])){ const s=S.fixSel[f.id]; if(!s||!s.on) continue;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(s.date)) continue;
+    const y=+s.date.slice(0,4); if(y<2000||y>2099) continue; await ensureYear(y);
+    const mk=s.date.slice(0,7); (S.tx[mk]=S.tx[mk]||[]).push({id:uid(),date:s.date,type:f.type,cat:f.cat,sub:f.sub,amount:f.amount,memo:f.memo,ts:Date.now()+n}); touched.add(mk); n++; }
+  touched.forEach(mk=>save('tx-'+mk));
+  if(!n){ toast('선택한 항목이 없어요'); return; }
+  closeModal(); if(+tgt.slice(0,4)!==YEAR) await setYear(+tgt.slice(0,4)); S.ledMonth=tgt; render(); toast(`${n}건을 ${+tgt.slice(5)}월에 기록했어요`);
+}
+
 /* ================= FILES & BACKUP ================= */
 async function downloadFile(name, text, mime){
   if(S.dl) return S.dl.save({filename:name, data:text});
@@ -976,7 +1157,7 @@ async function exportBackup(){
   for(const y of (S.years||[])) await ensureYear(y);
   const tx={}; Object.entries(S.tx).forEach(([m,l])=>{ if(l&&l.length) tx[m]=l; });
   const data={app:'모두의 가계부', version:1, savedAt:new Date().toISOString(),
-    data:{cats:S.cats,diag:S.diag,cash:S.cash,invest:S.invest,assets:S.assets,snaps:S.snaps,years:S.years||[]}, tx};
+    data:{cats:S.cats,diag:S.diag,cash:S.cash,invest:S.invest,assets:S.assets,snaps:S.snaps,years:S.years||[],fixed:S.fixed||[]}, tx};
   const d=new Date(), stamp=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
   try{ await downloadFile(`가계부_백업_${stamp}.json`, JSON.stringify(data), 'application/json'); }
   catch(e){ if(e && e.code!=='declined' && e.code!=='cancelled') toast('백업 파일을 저장하지 못했어요'); }
@@ -991,7 +1172,8 @@ async function importBackup(text){
   S.cats=D.cats||clone(DEFAULT_CATS); S.diag=D.diag||{}; S.cash=D.cash||clone(DEFAULT_CASH);
   S.invest=Object.assign(clone(DEFAULT_INVEST), D.invest||{}); S.assets=D.assets||clone(DEFAULT_ASSETS); S.snaps=D.snaps||[];
   S.years=[...new Set(Object.keys(b.tx).map(m=>+m.slice(0,4)))].sort((a,c)=>a-c);
-  ['cats','diag','cash','invest','assets','snaps','years'].forEach(save);
+  S.fixed=Array.isArray(D.fixed)?D.fixed:[];
+  ['cats','diag','cash','invest','assets','snaps','years','fixed'].forEach(save);
   for(const y of yrs) monthsOf(y).forEach(m=>save('tx-'+m));
   render(); toast('백업을 불러왔어요');
 }
@@ -1063,9 +1245,24 @@ document.addEventListener('click', e=>{
       const mk=date.slice(0,7);
       (S.tx[mk]=S.tx[mk]||[]).push({id:uid(),date,type:S.form.type,cat:S.form.cat,sub:S.form.sub,amount,memo,ts:Date.now()});
       save('tx-'+mk); if(mk!==S.ledMonth) S.ledMonth=mk; render(); toast('기록했어요'); setTimeout(()=>$('#fAmt')?.focus(),0); break; }
-    case 'txdel': confirmBox('이 거래를 삭제할까요? 되돌릴 수 없어요.', ()=>{ const mk=S.ledMonth; S.tx[mk]=monthTx(mk).filter(t=>t.id!==d.id); save('tx-'+mk); render(); toast('삭제했어요'); }); break;
+    case 'txdel': confirmBox('이 거래를 삭제할까요? 되돌릴 수 없어요.', ()=>{ const f=findTx(d.id); if(f){ S.tx[f.mk].splice(f.i,1); save('tx-'+f.mk); } S.edit=null; render(); toast('삭제했어요'); }); break;
+    case 'txedit': editModal(d.id); break;
+    case 'txfix': { const f=findTx(d.id); if(f){ toggleFixed(f.t); render(); } break; }
+    case 'esave': saveEdit(); break;
+    case 'edel': { const id=S.edit&&S.edit.id; if(id) confirmBox('이 거래를 삭제할까요? 되돌릴 수 없어요.', ()=>{ const f=findTx(id); if(f){ S.tx[f.mk].splice(f.i,1); save('tx-'+f.mk); } S.edit=null; render(); toast('삭제했어요'); }); break; }
+    case 'enext': case 'eprev': { readEdit(); const e=S.edit; if(e&&/^\d{4}-\d{2}-\d{2}$/.test(e.date)){ e.date=dateIn(shiftMonth(e.date.slice(0,7),a==='enext'?1:-1),+e.date.slice(8)); editModal(e.id,true); } break; }
+    case 'efix': { readEdit(); if(S.edit){ toggleFixed(S.edit); editModal(S.edit.id,true); } break; }
+    case 'qscope': S.qScope=d.v; render(); break;
+    case 'qclear': S.q=''; S.qCat=''; render(); setTimeout(()=>$('#q')?.focus(),0); break;
+    case 'qcat': S.qCat=d.v; refreshSearch(); break;
+    case 'fixed': fixedModal(); break;
+    case 'fxshift': S.fixTarget=shiftMonth(S.fixTarget,+d.v); S.fixSel={}; fixedModal(true); break;
+    case 'fxsug': S.fixSug=suggestFixed(); fixedModal(true); break;
+    case 'fxadd': { const x=S.fixSug&&S.fixSug[+d.i]; if(x){ S.fixed.push({id:uid(),type:x.t.type,cat:x.t.cat,sub:x.t.sub,memo:x.t.memo,amount:x.amount,day:x.day}); save('fixed'); S.fixSug=suggestFixed(); fixedModal(true); } break; }
+    case 'fxdel': S.fixed=S.fixed.filter(f=>f.id!==d.id); delete S.fixSel[d.id]; save('fixed'); fixedModal(true); break;
+    case 'fxapply': applyFixed(); break;
     case 'mok': { const cb=confirmCb; confirmCb=null; closeModal(); cb&&cb(); break; }
-    case 'mclose': closeModal(); if(S.tab==='ledger') render(); break;
+    case 'mclose': closeModal(); S.edit=null; if(S.tab==='ledger') render(); break;
     case 'cats': catsModal(); break;
     case 'csdel': S.cats[d.t][d.g].splice(+d.i,1); save('cats'); catsModal(); break;
     case 'csadd': { const inp=document.querySelector(`[data-newsub="${d.t}|${CSS.escape(d.g)}"]`); const v=inp.value.trim(); if(v&&!S.cats[d.t][d.g].includes(v)){S.cats[d.t][d.g].push(v); save('cats');} catsModal(); break; }
@@ -1108,6 +1305,14 @@ document.addEventListener('change', e=>{
     if(t.checked){ A.assets.forEach(x=>{ if(x.links) x.links=x.links.filter(id=>id!==d.lid); }); a.links=[...(a.links||[]), d.lid]; }
     else a.links=(a.links||[]).filter(id=>id!==d.lid);
     save('assets'); render(); linkModal(a.id); return; }
+  if(d.e){ readEdit(); const e=S.edit; if(!e) return; e[d.e]=t.value;
+    if(d.e==='type'){ e.cat=Object.keys(S.cats[e.type])[0]; e.sub=S.cats[e.type][e.cat][0]||''; }
+    if(d.e==='cat'){ e.sub=(S.cats[e.type][e.cat]||[])[0]||''; }
+    editModal(e.id,true); return; }
+  if(d.fx){ const s=S.fixSel[d.id], f=(S.fixed||[]).find(x=>x.id===d.id); if(!s||!f) return;
+    if(d.fx==='on') s.on=t.checked; else if(d.fx==='date'){ s.date=t.value; if(t.value) f.day=+t.value.slice(8); save('fixed'); }
+    else if(d.fx==='amt'){ f.amount=Math.abs(parseNum(t.value)); t.value=fmt(f.amount); save('fixed'); } return; }
+  if(t.id==='fxMonth'){ if(t.value){ S.fixTarget=t.value; S.fixSel={}; fixedModal(true); } return; }
   if(d.ch==='dmonth'){ S.dashMonth=t.value; render(); return; }
   if(d.ch==='ftype'){ S.form.type=t.value; S.form.cat=Object.keys(S.cats[t.value])[0]; S.form.sub=S.cats[t.value][S.form.cat][0]||''; keepForm(); return; }
   if(d.ch==='fcat'){ S.form.cat=t.value; S.form.sub=S.cats[S.form.type][t.value][0]||''; keepForm(); return; }
@@ -1121,6 +1326,7 @@ document.addEventListener('change', e=>{
 /* live edits: numbers apply while typing, text saves while typing */
 document.addEventListener('input', e=>{
   const t=e.target, d=t.dataset;
+  if(t.id==='q'){ S.q=t.value; S.qCat=''; clearTimeout(qTimer); qTimer=setTimeout(refreshSearch,180); return; }
   if(d.cf){ const g=S.cash[d.cf][+d.g]; if(!g) return;
     if(d.f==='v'){ g.items[+d.i].v=parseNum(t.value); save('cash'); renderKeep(false); }
     else { if(d.f==='name') g.name=t.value; else if(d.f==='note') g.note=t.value; else if(d.f==='n') g.items[+d.i].n=t.value; save('cash'); }
@@ -1166,7 +1372,8 @@ function focusNew(sel){ setTimeout(()=>{ const n=document.querySelector(sel); if
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape') closeModal();
   if(e.key==='Enter'){
-    if(['fAmt','fMemo'].includes(e.target.id)){ document.querySelector('[data-act="txadd"]').click(); }
+    if(['eAmt','eMemo','eDate'].includes(e.target.id)){ saveEdit(); }
+    else if(['fAmt','fMemo'].includes(e.target.id)){ document.querySelector('[data-act="txadd"]').click(); }
     else if(e.target.id==='newRate') document.querySelector('[data-act="radd"]').click();
     else if(e.target.id==='newGroup') document.querySelector('[data-act="agadd"]').click();
     else if(e.target.dataset.newsub){ e.target.nextElementSibling.click(); }
@@ -1205,10 +1412,10 @@ async function setYear(y){
   $('#today').textContent = `${now.getDate()} ${['Jan.','Feb.','Mar.','Apr.','May','Jun.','Jul.','Aug.','Sep.','Oct.','Nov.','Dec.'][now.getMonth()]} ${now.getFullYear()}`;
   renderTabs();
   await Store.init();
-  const keys=['cats','diag','cash','invest','assets','snaps','years'];
+  const keys=['cats','diag','cash','invest','assets','snaps','years','fixed'];
   const [vals] = await Promise.all([Promise.all(keys.map(k=>Store.get(k))), ensureYear(YEAR)]);
   S.cats=vals[0]||clone(DEFAULT_CATS); S.diag=vals[1]||{}; S.cash=vals[2]||clone(DEFAULT_CASH);
-  S.invest=Object.assign(clone(DEFAULT_INVEST), vals[3]||{}); S.assets=vals[4]||clone(DEFAULT_ASSETS); S.snaps=vals[5]||[]; S.years=vals[6]||[];
+  S.invest=Object.assign(clone(DEFAULT_INVEST), vals[3]||{}); S.assets=vals[4]||clone(DEFAULT_ASSETS); S.snaps=vals[5]||[]; S.years=vals[6]||[]; S.fixed=Array.isArray(vals[7])?vals[7]:[];
   if(!S.years.length && MONTHS.some(m=>monthTx(m).length)) S.years=[YEAR];
   const isNew = vals[0]==null && vals[2]==null && vals[4]==null && !S.years.length;
   $('#foot').innerHTML = (Store.mode==='cloud' ? '기록은 내 claude.ai 계정에 저장되어 다른 기기에서도 이어서 볼 수 있어요.' : '기록은 이 브라우저에만 저장돼요.')
