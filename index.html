@@ -125,7 +125,7 @@ table.t{width:100%;border-collapse:collapse;border-top:2px solid var(--rule-dark
 .x{border:0;background:none;color:var(--mute);cursor:pointer;font-size:16px;line-height:1;padding:2px 6px;border-radius:4px;}
 .x:hover{color:var(--neg);}
 .in{border:1px solid var(--rule);background:var(--paper);padding:6px 10px;border-radius:6px;font-size:13px;min-width:0;}
-select.in{padding-right:6px;}
+
 .cell{border:0;border-bottom:1px dashed transparent;background:transparent;width:100%;padding:2px 0;font-size:13px;}
 .cell:hover{border-bottom-color:var(--rule);}
 .cell:focus{outline:none;border-bottom:1px solid var(--bronze);}
@@ -173,6 +173,12 @@ label.fld .in{color:var(--ink);font-size:14px;}
 .chip input:focus{outline:none;border-bottom:1px solid var(--bronze);}
 .pill{display:inline-block;font-size:11.5px;padding:1px 8px;border-radius:999px;background:var(--head);color:var(--ink-2);}
 .pill.in{background:var(--hl);color:var(--bronze-deep);border:0;}
+b.inc{font-weight:700;color:var(--ink);}
+input[type=date].in,input[type=month].in{-webkit-appearance:none;appearance:none;display:block;min-height:0;text-align:left;}
+:where(input[type=date],input[type=month]).in{height:calc(1.6em + 14px);}
+input[type=date].in::-webkit-date-and-time-value,input[type=month].in::-webkit-date-and-time-value{text-align:left;margin:0;min-height:1.3em;}
+input[type=date].in::-webkit-datetime-edit,input[type=month].in::-webkit-datetime-edit{padding:0;}
+select.in{-webkit-appearance:none;appearance:none;padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238B8984' stroke-width='1.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;}
 
 /* Flow bar */
 .flow{position:relative;height:46px;background:var(--head);border-radius:3px;display:flex;overflow:visible;margin-top:28px;}
@@ -192,7 +198,7 @@ label.fld .in{color:var(--ink);font-size:14px;}
 .inv th.rate small{display:block;color:var(--mute);font-size:11px;}
 
 /* Ledger */
-.form .in{height:36px;}
+.form .in{height:38px;}
 .form{display:grid;grid-template-columns:130px 90px 1fr 1fr 130px 1.4fr auto;gap:8px;align-items:end;padding:14px 0;border-top:2px solid var(--rule-dark);border-bottom:1px solid var(--rule);}
 .mnav{display:flex;align-items:center;gap:10px;}
 .mnav .m{font-size:var(--fs-month);font-weight:900;letter-spacing:-.02em;min-width:70px;text-align:center;}
@@ -847,7 +853,7 @@ function viewLedger(){
   <div class="sec g2" style="grid-template-columns:1.6fr 1fr">
     <div><div class="fig"><i>Fig. 1</i>${mLabel(mk)} 거래 내역</div>
       ${list.length?`<div class="scroll"><table class="t"><thead><tr><th>날짜</th><th>대분류</th><th>소분류</th><th>메모</th><th class="r">금액</th><th></th></tr></thead><tbody>
-      ${list.map(t=>`<tr><td class="num" style="white-space:nowrap">${t.date.slice(5).replace('-','.')}</td><td>${t.type==='income'?'<span class="pill in">수입</span> ':''}${esc(t.cat)}</td><td>${esc(t.sub)}</td><td class="mute">${esc(t.memo)}${isFixed(t)?' <span class="pill">고정</span>':''}</td><td class="r num ${t.type==='income'?'pos':''}">${t.type==='income'?'+':''}${fmt(t.amount)}</td><td class="c acts-c">${rowActs(t)}</td></tr>`).join('')}
+      ${list.map(t=>`<tr><td class="num" style="white-space:nowrap">${t.date.slice(5).replace('-','.')}</td><td>${t.type==='income'?`<b class="inc">${esc(t.cat)}</b>`:esc(t.cat)}</td><td>${esc(t.sub)}</td><td class="mute">${esc(t.memo)}${isFixed(t)?' <span class="pill">고정</span>':''}</td><td class="r num ${t.type==='income'?'pos':''}">${t.type==='income'?'+':''}${fmt(t.amount)}</td><td class="c acts-c">${rowActs(t)}</td></tr>`).join('')}
       </tbody></table></div>`:`<div class="empty">${mLabel(mk)}에는 아직 기록이 없어요. 위에서 첫 거래를 기록해 보세요.</div>`}
     </div>
     <div><div class="fig"><i>Fig. 2</i>대분류별 지출</div>${expItems.length?rankList(expItems):'<p class="p">지출 기록이 없어요.</p>'}
@@ -1154,7 +1160,7 @@ function searchHTML(){
       <span class="mute">직접 일치 ${R.direct.length} · 관련 ${R.related.length}</span></div>
     ${chips?`<div class="chips" style="margin:8px 0 10px">${S.qCat?`<button class="chip qc" data-act="qcat" data-v="">전체 보기</button>`:''}${chips}</div>`:''}
     ${rows.length?`<div class="scroll qwrap"><table class="t"><thead><tr><th>날짜</th><th>대분류</th><th>소분류</th><th>메모</th><th class="r">금액</th><th></th></tr></thead><tbody>
-    ${shown.map(({t,k},i)=>`${k==='r'&&(i===0||shown[i-1].k==='d')?`<tr class="divr"><td colspan="6">관련 항목 · ${esc(R.terms.filter(w=>w!==norm(R.q)).slice(0,6).join(', '))}</td></tr>`:''}<tr class="${k==='r'?'rel':''}"><td class="num" style="white-space:nowrap">${t.date.replace(/-/g,'.')}</td><td>${t.type==='income'?'<span class="pill in">수입</span> ':''}${hl(t.cat,R.q)}</td><td>${hl(t.sub,R.q)}</td><td>${hl(t.memo,R.q)}${k==='r'?' <span class="pill">관련</span>':''}</td><td class="r num ${t.type==='income'?'pos':''}">${t.type==='income'?'+':''}${fmt(t.amount)}</td><td class="c acts-c">${rowActs(t)}</td></tr>`).join('')}
+    ${shown.map(({t,k},i)=>`${k==='r'&&(i===0||shown[i-1].k==='d')?`<tr class="divr"><td colspan="6">관련 항목 · ${esc(R.terms.filter(w=>w!==norm(R.q)).slice(0,6).join(', '))}</td></tr>`:''}<tr class="${k==='r'?'rel':''}"><td class="num" style="white-space:nowrap">${t.date.replace(/-/g,'.')}</td><td>${t.type==='income'?`<b class="inc">${hl(t.cat,R.q)}</b>`:hl(t.cat,R.q)}</td><td>${hl(t.sub,R.q)}</td><td>${hl(t.memo,R.q)}${k==='r'?' <span class="pill">관련</span>':''}</td><td class="r num ${t.type==='income'?'pos':''}">${t.type==='income'?'+':''}${fmt(t.amount)}</td><td class="c acts-c">${rowActs(t)}</td></tr>`).join('')}
     </tbody></table></div>${rows.length>200?`<p class="src">최근 200건만 보여요. 검색어를 더 구체적으로 입력해 보세요.</p>`:''}`:`<div class="empty">'${esc(R.q)}'와 관련된 거래가 없어요.</div>`}`;
 }
 let qTimer;
@@ -1224,7 +1230,7 @@ function fixedModal(keep){
   list.forEach(f=>{ if(!S.fixSel[f.id]){ const dup=exist.some(t=>fixKey(t)===fixKey(f)); S.fixSel[f.id]={on:!dup,date:dateIn(tgt,f.day||1),dup}; } });
   const rows=list.map(f=>{ const s=S.fixSel[f.id]; return `<tr><td class="c"><input type="checkbox" data-fx="on" data-id="${f.id}" ${s.on?'checked':''} aria-label="선택"></td>
     <td><input class="in" type="date" data-fx="date" data-id="${f.id}" value="${s.date}" style="padding:3px 6px"></td>
-    <td>${f.type==='income'?'<span class="pill in">수입</span> ':''}${esc(f.cat)} <span class="mute">› ${esc(f.sub)}</span></td>
+    <td>${f.type==='income'?`<b class="inc">${esc(f.cat)}</b>`:esc(f.cat)} <span class="mute">› ${esc(f.sub)}</span></td>
     <td>${esc(f.memo)}${s.dup?' <span class="pill">이미 있음</span>':''}</td>
     <td class="r"><input class="cell r num" data-fx="amt" data-id="${f.id}" value="${fmt(f.amount)}" inputmode="numeric" style="width:96px"></td>
     <td class="c"><button class="x" data-act="fxdel" data-id="${f.id}" aria-label="고정비 삭제">×</button></td></tr>`; }).join('');
